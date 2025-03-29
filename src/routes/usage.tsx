@@ -1,22 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { BarChart3, BarChart4, Calendar, Download, HelpCircle, LineChart } from "lucide-react";
+import { BarChart3, BarChart4, Calendar, Download, HelpCircle, LineChart, Rocket } from "lucide-react";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { useState } from "react";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export const Route = createFileRoute("/usage")({
 	component: Usage,
 });
 
 // Mock data for usage statistics
+// Total tokens calculated as input + output
 const mockDailyUsage = [
-	{ date: "03/18", requests: 120, tokens: 7800 },
-	{ date: "03/19", requests: 145, tokens: 8900 },
-	{ date: "03/20", requests: 98, tokens: 6500 },
-	{ date: "03/21", requests: 210, tokens: 12400 },
-	{ date: "03/22", requests: 180, tokens: 11000 },
-	{ date: "03/23", requests: 165, tokens: 10200 },
-	{ date: "03/24", requests: 190, tokens: 11300 },
+	{ date: "03/18", requests: 120, input_tokens: 5200, output_tokens: 2600, tokens: 7800 },
+	{ date: "03/19", requests: 145, input_tokens: 5900, output_tokens: 3000, tokens: 8900 },
+	{ date: "03/20", requests: 98, input_tokens: 4300, output_tokens: 2200, tokens: 6500 },
+	{ date: "03/21", requests: 210, input_tokens: 8200, output_tokens: 4200, tokens: 12400 },
+	{ date: "03/22", requests: 180, input_tokens: 7300, output_tokens: 3700, tokens: 11000 },
+	{ date: "03/23", requests: 165, input_tokens: 6800, output_tokens: 3400, tokens: 10200 },
+	{ date: "03/24", requests: 190, input_tokens: 7500, output_tokens: 3800, tokens: 11300 },
 ];
 
 const mockModelsUsage = [
@@ -36,14 +38,36 @@ function Usage() {
 	// Use auth hook to require authentication
 	const { isAuthenticated } = useRequireAuth();
 
+	// Function to handle export data to CSV
+	const handleExportData = () => {
+		// Create CSV content
+		const headers = ["Date", "Requests", "Input Tokens", "Output Tokens", "Total Tokens"];
+		const csvRows = [
+			headers.join(","),
+			...mockDailyUsage.map((day) =>
+				[day.date, day.requests, day.input_tokens, day.output_tokens, day.tokens].join(","),
+			),
+		];
+		const csvContent = csvRows.join("\n");
+
+		// Create a blob with the CSV data
+		const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+		const url = URL.createObjectURL(blob);
+
+		// Create a link and trigger download
+		const link = document.createElement("a");
+		link.setAttribute("href", url);
+		link.setAttribute("download", `libertai-usage-${timeRange}.csv`);
+		link.style.visibility = "hidden";
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	};
+
 	// Return null if not authenticated (redirect is handled by the hook)
 	if (!isAuthenticated) {
 		return null;
 	}
-
-	// Find the max values for scaling
-	const maxRequests = Math.max(...mockDailyUsage.map((day) => day.requests));
-	const maxTokens = Math.max(...mockDailyUsage.map((day) => day.tokens));
 
 	return (
 		<div className="container mx-auto px-4 py-8">
@@ -67,97 +91,112 @@ function Usage() {
 				</div>
 
 				{/* Summary Cards */}
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 					<div className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-border">
 						<div className="flex items-center gap-3 mb-2">
 							<BarChart4 className="h-5 w-5 text-primary" />
 							<h2 className="text-lg font-medium">Total Requests</h2>
 						</div>
 						<p className="text-3xl font-bold">1,200</p>
-						<p className="text-sm text-emerald-400 mt-1 flex items-center">
-							<span className="inline-block mr-1">↑</span> 8% from previous period
-						</p>
 					</div>
 
 					<div className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-border">
 						<div className="flex items-center gap-3 mb-2">
 							<LineChart className="h-5 w-5 text-primary" />
-							<h2 className="text-lg font-medium">Total Tokens</h2>
+							<h2 className="text-lg font-medium">Input tokens</h2>
 						</div>
 						<p className="text-3xl font-bold">66,000</p>
-						<p className="text-sm text-emerald-400 mt-1 flex items-center">
-							<span className="inline-block mr-1">↑</span> 12% from previous period
-						</p>
+					</div>
+
+					<div className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-border">
+						<div className="flex items-center gap-3 mb-2">
+							<Rocket className="h-5 w-5 text-primary" />
+							<h2 className="text-lg font-medium">Output Tokens</h2>
+						</div>
+						<p className="text-3xl font-bold">1,200</p>
 					</div>
 
 					<div className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-border">
 						<div className="flex items-center gap-3 mb-2">
 							<Calendar className="h-5 w-5 text-primary" />
-							<h2 className="text-lg font-medium">Total Cost</h2>
+							<h2 className="text-lg font-medium">Cost</h2>
 						</div>
-						<p className="text-3xl font-bold">16.5 LTAI</p>
-						<p className="text-sm text-emerald-400 mt-1 flex items-center">
-							<span className="inline-block mr-1">↑</span> 5% from previous period
-						</p>
+						<p className="text-3xl font-bold">$42</p>
 					</div>
 				</div>
 
 				{/* Daily Usage Chart */}
-				<div className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-border">
+				<div className="bg-card/50 backdrop-blur-sm md:p-6 max-sm:p-4 rounded-xl border border-border">
 					<div className="flex items-center justify-between mb-6">
 						<div className="flex items-center gap-3">
 							<BarChart3 className="h-5 w-5 text-primary" />
-							<h2 className="text-xl font-semibold">Daily Usage</h2>
+							<h2 className="text-xl font-semibold">Daily Token Usage</h2>
 						</div>
-						<Button variant="outline" size="sm">
+						<Button variant="outline" size="sm" onClick={handleExportData}>
 							<Download className="h-4 w-4 mr-2" />
 							Export Data
 						</Button>
 					</div>
 
-					<div className="h-72 flex flex-col">
-						<div className="flex-1 flex items-end justify-between gap-2">
-							{mockDailyUsage.map((day, index) => (
-								<div key={index} className="flex flex-col items-center gap-1 flex-1 group relative">
-									<div className="w-full flex flex-col items-center gap-1">
-										<div
-											className="w-4/5 bg-primary/80 hover:bg-primary transition-colors rounded-sm"
-											style={{ height: `${(day.requests / maxRequests) * 100}%` }}
-										></div>
-										<div
-											className="w-4/5 bg-[#8a5cf5]/80 hover:bg-[#8a5cf5] transition-colors rounded-sm"
-											style={{ height: `${(day.tokens / maxTokens) * 30}%` }}
-										></div>
-									</div>
-
-									{/* Tooltip */}
-									<div className="absolute bottom-full mb-2 bg-card rounded-md border border-border p-2 text-xs invisible group-hover:visible w-32 z-10">
-										<p className="font-semibold">{day.date}</p>
-										<p className="text-primary flex justify-between mt-1">
-											<span>Requests:</span>
-											<span>{day.requests}</span>
-										</p>
-										<p className="text-[#8a5cf5] flex justify-between">
-											<span>Tokens:</span>
-											<span>{day.tokens}</span>
-										</p>
-									</div>
-
-									<span className="text-xs text-muted-foreground mt-1">{day.date}</span>
-								</div>
-							))}
-						</div>
-
-						<div className="flex justify-center mt-4 gap-6">
-							<div className="flex items-center gap-2">
-								<div className="w-3 h-3 bg-primary rounded-sm"></div>
-								<span className="text-xs text-muted-foreground">Requests</span>
-							</div>
-							<div className="flex items-center gap-2">
-								<div className="w-3 h-3 bg-[#8a5cf5] rounded-sm"></div>
-								<span className="text-xs text-muted-foreground">Tokens</span>
-							</div>
-						</div>
+					<div className="h-72">
+						<ResponsiveContainer width="100%" height="100%">
+							<BarChart data={mockDailyUsage} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+								<CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+								<XAxis dataKey="date" tick={{ fontSize: 12 }} tickLine={false} axisLine={{ stroke: "var(--border)" }} />
+								<YAxis
+									yAxisId="left"
+									orientation="left"
+									tick={{ fontSize: 12 }}
+									tickLine={false}
+									axisLine={{ stroke: "var(--border)" }}
+									tickFormatter={(value) => value.toLocaleString()}
+								/>
+								<YAxis
+									yAxisId="right"
+									orientation="right"
+									tick={{ fontSize: 12 }}
+									tickLine={false}
+									axisLine={{ stroke: "var(--border)" }}
+									tickFormatter={(value) => value.toLocaleString()}
+								/>
+								<Tooltip
+									contentStyle={{
+										backgroundColor: "var(--card)",
+										border: "1px solid var(--border)",
+										borderRadius: "0.5rem",
+										fontSize: "0.875rem",
+										boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+									}}
+									formatter={(value, name) => [value.toLocaleString(), name]}
+									itemStyle={{ padding: "4px 0" }}
+									cursor={{ fill: "rgba(128, 128, 128, 0.1)" }}
+									labelFormatter={(label) => `Date: ${label}`}
+								/>
+								<Legend
+									align="center"
+									verticalAlign="bottom"
+									iconType="circle"
+									iconSize={8}
+									wrapperStyle={{ paddingTop: "10px" }}
+								/>
+								<Bar
+									yAxisId="right"
+									dataKey="input_tokens"
+									name="Input"
+									fill="#7c3aed"
+									radius={[4, 4, 0, 0]}
+									barSize={24}
+								/>
+								<Bar
+									yAxisId="right"
+									dataKey="output_tokens"
+									name="Output"
+									fill="#a78bfa"
+									radius={[4, 4, 0, 0]}
+									barSize={24}
+								/>
+							</BarChart>
+						</ResponsiveContainer>
 					</div>
 				</div>
 
@@ -176,7 +215,7 @@ function Usage() {
 										<th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Model</th>
 										<th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Requests</th>
 										<th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Tokens</th>
-										<th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Cost (LTAI)</th>
+										<th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Cost</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -185,7 +224,7 @@ function Usage() {
 											<td className="px-4 py-3 text-sm font-medium">{model.model}</td>
 											<td className="px-4 py-3 text-sm text-right">{model.requests}</td>
 											<td className="px-4 py-3 text-sm text-right">{model.tokens}</td>
-											<td className="px-4 py-3 text-sm text-right">{model.cost}</td>
+											<td className="px-4 py-3 text-sm text-right">${model.cost}</td>
 										</tr>
 									))}
 								</tbody>
@@ -206,7 +245,7 @@ function Usage() {
 										<th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">API Key</th>
 										<th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Requests</th>
 										<th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Tokens</th>
-										<th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Cost (LTAI)</th>
+										<th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Cost</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -215,7 +254,7 @@ function Usage() {
 											<td className="px-4 py-3 text-sm font-medium">{key.key}</td>
 											<td className="px-4 py-3 text-sm text-right">{key.requests}</td>
 											<td className="px-4 py-3 text-sm text-right">{key.tokens}</td>
-											<td className="px-4 py-3 text-sm text-right">{key.cost}</td>
+											<td className="px-4 py-3 text-sm text-right">${key.cost}</td>
 										</tr>
 									))}
 								</tbody>
