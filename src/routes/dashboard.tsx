@@ -1,8 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useAccountStore } from "@/stores/account";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, BarChart4, Coins, History, Key, LineChart, Zap } from "lucide-react";
+import { AlertCircle, BarChart4, Coins, Key, LineChart, Zap } from "lucide-react";
 import { useRequireAuth } from "@/hooks/use-auth";
+import { useApiKeys } from "@/hooks/data/use-api-keys";
+import { useCredits } from "@/hooks/data/use-credits";
+import { useStats } from "@/hooks/data/use-stats";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/dashboard")({
 	component: Dashboard,
@@ -10,21 +14,80 @@ export const Route = createFileRoute("/dashboard")({
 
 function Dashboard() {
 	const { isAuthenticated } = useRequireAuth();
-	const ltaiBalance = useAccountStore((state) => state.formattedLTAIBalance());
+	const { formattedCredits, isLoading: areCreditsLoading } = useCredits();
 	const navigate = useNavigate();
-
-	// In a real app, these would be fetched from an API
-	const mockStats = {
-		apiCalls: 2853,
-		activeKeys: 2,
-		tokensUsed: 154893,
-		monthlyUsage: [258, 342, 430, 389, 675, 759],
-	};
+	const { apiKeys, isLoading: areApiKeysLoading } = useApiKeys();
+	const { apiCalls, tokensUsed, chartData, isLoading: areStatsLoading } = useStats();
 
 	// Return null if not authenticated (redirect is handled by the hook)
 	if (!isAuthenticated) {
 		return null;
 	}
+	
+	// Quick actions data
+	const quickActions = [
+		{
+			id: "apiKeys",
+			icon: <Key className="h-4 w-4" />,
+			label: "Manage API Keys",
+			onClick: () => navigate({ to: "/api-keys" }),
+			external: false
+		},
+		{
+			id: "usage",
+			icon: <LineChart className="h-4 w-4" />,
+			label: "View Detailed Usage",
+			onClick: () => navigate({ to: "/usage" }),
+			external: false
+		},
+		{
+			id: "docs",
+			icon: <AlertCircle className="h-4 w-4" />,
+			label: "API Documentation",
+			href: "https://docs.libertai.io",
+			external: true
+		}
+	];
+
+	// Dashboard stat cards data
+	const dashboardStats = [
+		{
+			id: "balance",
+			title: "Balance",
+			icon: <Coins className="h-5 w-5 text-primary" />,
+			value: areCreditsLoading ? <Skeleton className="h-10 w-32" /> : `$${formattedCredits}`,
+			action: {
+				label: "Top Up",
+				variant: "default",
+				onClick: () => navigate({ to: "/top-up" })
+			}
+		},
+		{
+			id: "apiCalls",
+			title: "API Calls",
+			icon: <Zap className="h-5 w-5 text-primary" />,
+			value: areStatsLoading ? <Skeleton className="h-10 w-32" /> : apiCalls,
+			footer: "This month"
+		},
+		{
+			id: "activeKeys",
+			title: "Active Keys",
+			icon: <Key className="h-5 w-5 text-primary" />,
+			value: areApiKeysLoading ? <Skeleton className="h-10 w-32" /> : apiKeys.filter((key) => key.is_active).length,
+			action: {
+				label: "Manage",
+				variant: "outline",
+				onClick: () => navigate({ to: "/api-keys" })
+			}
+		},
+		{
+			id: "tokensUsed",
+			title: "Tokens Used",
+			icon: <LineChart className="h-5 w-5 text-primary" />,
+			value: areStatsLoading ? <Skeleton className="h-10 w-32" /> : tokensUsed,
+			footer: "This month"
+		}
+	];
 
 	return (
 		<div className="container mx-auto px-4 py-8">
@@ -35,45 +98,26 @@ function Dashboard() {
 				</div>
 
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-					<div className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-border">
-						<div className="flex items-center gap-3 mb-2">
-							<Coins className="h-5 w-5 text-primary" />
-							<h2 className="text-lg font-medium">LTAI Balance</h2>
+					{dashboardStats.map((stat) => (
+						<div key={stat.id} className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-border">
+							<div className="flex items-center gap-3 mb-2">
+								{stat.icon}
+								<h2 className="text-lg font-medium">{stat.title}</h2>
+							</div>
+							<p className="text-3xl font-bold">{stat.value}</p>
+							{stat.action && (
+								<Button 
+									size="sm" 
+									variant={stat.action.variant as "default" | "outline"} 
+									className="mt-4" 
+									onClick={stat.action.onClick}
+								>
+									{stat.action.label}
+								</Button>
+							)}
+							{stat.footer && <p className="text-xs text-muted-foreground mt-4">{stat.footer}</p>}
 						</div>
-						<p className="text-3xl font-bold">{ltaiBalance} LTAI</p>
-						<Button size="sm" className="mt-4" onClick={() => navigate({ to: "/topup" })}>
-							Top Up
-						</Button>
-					</div>
-
-					<div className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-border">
-						<div className="flex items-center gap-3 mb-2">
-							<Zap className="h-5 w-5 text-primary" />
-							<h2 className="text-lg font-medium">API Calls</h2>
-						</div>
-						<p className="text-3xl font-bold">{mockStats.apiCalls}</p>
-						<p className="text-xs text-muted-foreground mt-4">This month</p>
-					</div>
-
-					<div className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-border">
-						<div className="flex items-center gap-3 mb-2">
-							<Key className="h-5 w-5 text-primary" />
-							<h2 className="text-lg font-medium">Active Keys</h2>
-						</div>
-						<p className="text-3xl font-bold">{mockStats.activeKeys}</p>
-						<Button size="sm" variant="outline" className="mt-4" onClick={() => navigate({ to: "/api-keys" })}>
-							Manage
-						</Button>
-					</div>
-
-					<div className="bg-card/50 backdrop-blur-sm p-6 rounded-xl border border-border">
-						<div className="flex items-center gap-3 mb-2">
-							<LineChart className="h-5 w-5 text-primary" />
-							<h2 className="text-lg font-medium">Tokens Used</h2>
-						</div>
-						<p className="text-3xl font-bold">{mockStats.tokensUsed}</p>
-						<p className="text-xs text-muted-foreground mt-4">This month</p>
-					</div>
+					))}
 				</div>
 
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -83,18 +127,58 @@ function Dashboard() {
 							<BarChart4 className="h-5 w-5 text-primary" />
 						</div>
 
-						<div className="h-64 flex items-end justify-between gap-2">
-							{mockStats.monthlyUsage.map((value, index) => (
-								<div key={index} className="flex flex-col items-center gap-2 flex-1">
-									<div
-										className="w-full bg-gradient-to-t from-primary to-[#8a5cf5] rounded-t-sm"
-										style={{ height: `${(value / Math.max(...mockStats.monthlyUsage)) * 100}%` }}
-									></div>
-									<span className="text-xs text-muted-foreground">
-										{["Jan", "Feb", "Mar", "Apr", "May", "Jun"][index]}
-									</span>
+						<div className="h-64">
+							{areStatsLoading ? (
+								<div className="flex flex-col gap-4 justify-center px-6 h-full">
+									<Skeleton className="h-4 w-full" />
+									<Skeleton className="h-32 w-full" />
+									<Skeleton className="h-4 w-3/4 mx-auto" />
 								</div>
-							))}
+							) : (
+								<ResponsiveContainer width="100%" height="100%">
+									<AreaChart data={chartData} margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
+										<defs>
+											<linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
+												<stop offset="5%" stopColor="var(--primary)" stopOpacity={0.8} />
+												<stop offset="95%" stopColor="var(--primary)" stopOpacity={0.2} />
+											</linearGradient>
+										</defs>
+										<CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+										<XAxis
+											dataKey="month"
+											tick={{ fontSize: 12 }}
+											tickLine={false}
+											axisLine={{ stroke: "var(--border)" }}
+										/>
+										<YAxis
+											tick={{ fontSize: 12 }}
+											tickLine={false}
+											axisLine={{ stroke: "var(--border)" }}
+											domain={[0, "dataMax + 5"]}
+											tickFormatter={(value) => `$${value}`}
+										/>
+										<Tooltip
+											contentStyle={{
+												backgroundColor: "var(--card)",
+												border: "1px solid var(--border)",
+												borderRadius: "0.5rem",
+												fontSize: "0.875rem",
+												boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+											}}
+											formatter={(value) => [`$${value}`, "Credits used"]}
+											labelStyle={{ marginBottom: "5px", fontWeight: "bold" }}
+										/>
+										<Area
+											type="monotone"
+											dataKey="cost"
+											name="Credits used"
+											stroke="var(--primary)"
+											fillOpacity={1}
+											fill="url(#colorCost)"
+										/>
+									</AreaChart>
+								</ResponsiveContainer>
+							)}
 						</div>
 					</div>
 
@@ -104,35 +188,32 @@ function Dashboard() {
 							<Zap className="h-5 w-5 text-primary" />
 						</div>
 
+						
 						<div className="space-y-3">
-							<Button
-								variant="outline"
-								className="w-full justify-between"
-								onClick={() => navigate({ to: "/api-keys" })}
-							>
-								<span className="flex items-center gap-2">
-									<Key className="h-4 w-4" />
-									Manage API Keys
-								</span>
-							</Button>
-							<Button variant="outline" className="w-full justify-between" onClick={() => navigate({ to: "/usage" })}>
-								<span className="flex items-center gap-2">
-									<LineChart className="h-4 w-4" />
-									View Detailed Usage
-								</span>
-							</Button>
-							<Button variant="outline" className="w-full justify-between">
-								<span className="flex items-center gap-2">
-									<History className="h-4 w-4" />
-									Request History
-								</span>
-							</Button>
-							<Button variant="outline" className="w-full justify-between">
-								<span className="flex items-center gap-2">
-									<AlertCircle className="h-4 w-4" />
-									API Documentation
-								</span>
-							</Button>
+							{quickActions.map((action) => (
+								action.external ? (
+									<a key={action.id} href={action.href} target="_blank">
+										<Button variant="outline" className="w-full justify-between">
+											<span className="flex items-center gap-2">
+												{action.icon}
+												{action.label}
+											</span>
+										</Button>
+									</a>
+								) : (
+									<Button
+										key={action.id}
+										variant="outline"
+										className="w-full justify-between"
+										onClick={action.onClick}
+									>
+										<span className="flex items-center gap-2">
+											{action.icon}
+											{action.label}
+										</span>
+									</Button>
+								)
+							))}
 						</div>
 					</div>
 				</div>
